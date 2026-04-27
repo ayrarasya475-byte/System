@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.email == 'ayrarasya475@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Prompts
+    match /prompts/{promptId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'copyCount', 'downloadCount'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Models
+    match /models/{modelId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Suggestions
+    match /suggestions/{suggestionId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && isEmailVerified();
+      allow update, delete: if isAdmin();
+    }
+
+    // Chat Sessions (sessionId is the userId)
+    match /chat_sessions/{sessionId} {
+      allow read: if isAdmin() || isOwner(sessionId);
+      allow create: if isSignedIn() && isEmailVerified() && sessionId == request.auth.uid;
+      allow update: if isAdmin() || isOwner(sessionId);
+      allow delete: if isAdmin();
+    }
+
+    match /chat_sessions/{sessionId}/messages/{messageId} {
+      allow read: if isAdmin() || isOwner(sessionId);
+      allow create: if (isAdmin() || isOwner(sessionId)) && incoming().senderId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Stats Logs
+    match /stats_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true; // Open to track anonymous interactions if needed, but safer with isSignedIn()
+    }
+
+    // User Likes
+    match /users/{userId}/likes/{promptId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+  }
+}

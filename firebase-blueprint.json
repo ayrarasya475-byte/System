@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "Prompt": {
+      "title": "Prompt",
+      "description": "A collection of AI prompts.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "content": { "type": "string" },
+        "modelId": { "type": "string" },
+        "likes": { "type": "number" },
+        "copyCount": { "type": "number" },
+        "downloadCount": { "type": "number" },
+        "creatorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "pending"] }
+      },
+      "required": ["name", "content", "modelId", "likes", "copyCount", "downloadCount", "createdAt", "status"]
+    },
+    "Model": {
+      "title": "Model",
+      "description": "AI models like ChatGPT, Claude, etc.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Suggestion": {
+      "title": "Suggestion",
+      "description": "User suggested prompts and feedback.",
+      "type": "object",
+      "properties": {
+        "userName": { "type": "string" },
+        "promptName": { "type": "string" },
+        "status": { "type": "string", "enum": ["legal", "illegal"] },
+        "details": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userName", "promptName", "status", "userId", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Messages for customer service chat.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "chatId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "senderId", "chatId", "createdAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "Active support chat sessions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["open", "closed"] }
+      },
+      "required": ["userId", "userEmail", "updatedAt", "status"]
+    },
+    "StatsLog": {
+      "title": "StatsLog",
+      "description": "Log of prompt interactions.",
+      "type": "object",
+      "properties": {
+        "promptId": { "type": "string" },
+        "type": { "type": "string", "enum": ["copy", "download", "like"] },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["promptId", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/prompts/{promptId}": {
+      "schema": "Prompt",
+      "description": "Main prompts collection."
+    },
+    "/models/{modelId}": {
+      "schema": "Model",
+      "description": "List of available AI models."
+    },
+    "/suggestions/{suggestionId}": {
+      "schema": "Suggestion",
+      "description": "User suggestions and feedback."
+    },
+    "/chat_sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Support chat sessions."
+    },
+    "/chat_sessions/{sessionId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Individual messages within a chat session."
+    },
+    "/stats_logs/{logId}": {
+      "schema": "StatsLog",
+      "description": "Detailed interaction logs."
+    },
+    "/users/{userId}/likes/{promptId}": {
+      "schema": { "type": "object", "properties": { "at": { "type": "string", "format": "date-time" } } },
+      "description": "Track which prompts a user has liked."
+    }
+  }
+}
