@@ -25,10 +25,9 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
+    // Simplified query to avoid index requirement during initial setup
     const q = query(
-      collection(db, 'prompts'),
-      where('status', '==', 'active'),
-      orderBy('createdAt', 'desc')
+      collection(db, 'prompts')
     );
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
@@ -50,12 +49,21 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const filteredPrompts = prompts.filter(p => {
-    const matchesModel = !selectedModel || p.modelId === selectedModel;
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.content.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesModel && matchesSearch;
-  });
+  const filteredPrompts = prompts
+    .filter(p => {
+      // Filter for active status in the UI to skip index Requirement
+      const isActive = p.status === 'active';
+      const matchesModel = !selectedModel || p.modelId === selectedModel;
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            p.content.toLowerCase().includes(searchQuery.toLowerCase());
+      return isActive && matchesModel && matchesSearch;
+    })
+    // Sort in-memory to skip index requirement
+    .sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
 
   const handleAdminLogin = () => {
     if (adminPass === '92727292827') {

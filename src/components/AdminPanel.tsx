@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent, useRef } from 'react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { Prompt, Model, Suggestion, StatsLog, ChatSession } from '../types';
 import { Plus, Database, BarChart3, MessageSquare, Trash2, CheckCircle2 } from 'lucide-react';
@@ -10,6 +11,25 @@ import { format } from 'date-fns';
 export default function AdminPanel({ onClose }: { onClose: () => void, key?: string }) {
   const [tab, setTab] = useState<'add' | 'model' | 'data' | 'service' | 'suggestions'>('add');
   
+  const [user, loading] = useAuthState(auth);
+  const isAdminAccount = user?.email === 'ayrarasya475@gmail.com';
+
+  if (loading) return null;
+
+  if (!isAdminAccount) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-8 text-center">
+        <div className="max-w-sm">
+          <h3 className="text-xl font-bold mb-4">Akses Tersentralisasi</h3>
+          <p className="text-white/40 text-sm mb-8 leading-relaxed">
+            Anda telah memasukkan sandi akses, namun akun Google Anda (<strong>{user?.email || 'Belum Login'}</strong>) tidak terdaftar sebagai administrator di database.
+          </p>
+          <button onClick={onClose} className="btn-primary w-full">Kembali</button>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
