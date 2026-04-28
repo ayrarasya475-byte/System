@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
-export default function AdminPanel({ onClose }: { onClose: () => void, key?: string }) {
+export default function AdminPanel({ onClose, showToast }: { onClose: () => void, showToast?: any, key?: string }) {
   const [tab, setTab] = useState<'add' | 'model' | 'data' | 'service' | 'suggestions'>('add');
   
   const [user, loading] = useAuthState(auth);
@@ -91,7 +91,10 @@ function AddPromptTab() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.content || !form.modelId) return alert('Data wajib diisi!');
+    if (!form.name || !form.content || !form.modelId) {
+      showToast?.('Data wajib diisi!');
+      return;
+    }
     
     try {
       if (isEditing && form.id) {
@@ -101,7 +104,7 @@ function AddPromptTab() {
           modelId: form.modelId,
           updatedAt: new Date().toISOString()
         });
-        alert('Prompt berhasil diperbarui!');
+        showToast?.('Prompt berhasil diperbarui!', 'success');
       } else {
         await addDoc(collection(db, 'prompts'), {
           name: form.name,
@@ -113,7 +116,7 @@ function AddPromptTab() {
           createdAt: new Date().toISOString(),
           status: 'active'
         });
-        alert('Prompt berhasil ditambahkan!');
+        showToast?.('Prompt berhasil ditambahkan!', 'success');
       }
       setForm({ id: '', name: '', content: '', modelId: '' });
       setIsEditing(false);
@@ -459,8 +462,11 @@ function ServiceTab() {
               )}
             >
               <div className="flex justify-between items-start mb-1">
-                <p className="text-[11px] md:text-xs font-bold truncate leading-tight uppercase tracking-tight max-w-[70%]">{s.userEmail || 'Anonymous User'}</p>
-                <p className={cn("text-[8px] font-black uppercase tracking-widest shrink-0 ml-2", activeSession === s.id ? "text-black/40" : "text-white/20")}>
+                <div className="flex-1 min-w-0 pr-2">
+                  <p className="text-[11px] md:text-xs font-bold truncate leading-tight uppercase tracking-tight">{s.userName || 'Anonymous User'}</p>
+                  <p className="text-[9px] text-white/20 truncate">{s.userEmail}</p>
+                </div>
+                <p className={cn("text-[8px] font-black uppercase tracking-widest shrink-0", activeSession === s.id ? "text-black/40" : "text-white/20")}>
                   {s.updatedAt ? format(new Date(s.updatedAt), 'HH:mm') : '--:--'}
                 </p>
               </div>

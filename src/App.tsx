@@ -34,6 +34,11 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Fail-safe to ensure boot screen disappears
+    const timer = setTimeout(() => {
+      setIsBooting(false);
+    }, 5000);
+
     const sequence = async () => {
       try {
         setBootStatus('Connecting to Cloud...');
@@ -42,14 +47,17 @@ export default function App() {
         await new Promise(r => setTimeout(r, 600));
         setBootStatus('Syncing Database...');
         
-        // Let initialization finish
-        const q = query(collection(db, 'prompts'));
-        onSnapshot(q, (s) => {
+        const qPrompts = query(collection(db, 'prompts'));
+        onSnapshot(qPrompts, (s) => {
           setPrompts(s.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt)));
           if (isBooting) {
             setBootStatus('Systems Ready.');
             setTimeout(() => setIsBooting(false), 500);
           }
+        }, (err) => {
+          console.error('Prompts sync error:', err);
+          setBootStatus('Offline Mode Active.');
+          setTimeout(() => setIsBooting(false), 1500);
         });
 
         onSnapshot(query(collection(db, 'models')), (s) => {
@@ -59,9 +67,11 @@ export default function App() {
       } catch (err) {
         setBootStatus('System Error: Database unreachable.');
         console.error(err);
+        setTimeout(() => setIsBooting(false), 2000);
       }
     };
     sequence();
+    return () => clearTimeout(timer);
   }, []);
 
   const filteredPrompts = [...prompts]
@@ -273,7 +283,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {view === 'chat' && <Chat key="chat" onClose={() => setView('browse')} showToast={showToast} />}
           {view === 'suggest' && <SuggestionForm key="suggest" onClose={() => setView('browse')} showToast={showToast} />}
-          {view === 'admin' && <AdminPanel key="admin" onClose={() => setView('browse')} />}
+          {view === 'admin' && <AdminPanel key="admin" onClose={() => setView('browse')} showToast={showToast} />}
           {view === 'faq' && (
             <motion.div 
               key="faq"

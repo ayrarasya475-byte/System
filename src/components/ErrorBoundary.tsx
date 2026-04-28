@@ -9,10 +9,10 @@ interface State {
   error?: Error;
 }
 
-export default class ErrorBoundary extends React.Component<any, any> {
-  public state = {
+export default class ErrorBoundary extends React.Component<Props, State> {
+  public state: State = {
     hasError: false,
-    error: null as Error | null
+    error: undefined
   };
 
   public static getDerivedStateFromError(error: Error) {
