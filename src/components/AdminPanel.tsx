@@ -12,23 +12,8 @@ export default function AdminPanel({ onClose }: { onClose: () => void, key?: str
   const [tab, setTab] = useState<'add' | 'model' | 'data' | 'service' | 'suggestions'>('add');
   
   const [user, loading] = useAuthState(auth);
-  const isAdminAccount = user?.email === 'ayrarasya475@gmail.com';
 
   if (loading) return null;
-
-  if (!isAdminAccount) {
-    return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-8 text-center">
-        <div className="max-w-sm">
-          <h3 className="text-xl font-bold mb-4">Akses Tersentralisasi</h3>
-          <p className="text-white/40 text-sm mb-8 leading-relaxed">
-            Anda telah memasukkan sandi akses, namun akun Google Anda (<strong>{user?.email || 'Belum Login'}</strong>) tidak terdaftar sebagai administrator di database.
-          </p>
-          <button onClick={onClose} className="btn-primary w-full">Kembali</button>
-        </div>
-      </motion.div>
-    );
-  }
 
   return (
     <motion.div 
@@ -90,65 +75,142 @@ function AdminTabBtn({ active, onClick, label, icon: Icon }: any) {
 
 function AddPromptTab() {
   const [models, setModels] = useState<Model[]>([]);
-  const [form, setForm] = useState({ name: '', content: '', modelId: '' });
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [form, setForm] = useState({ id: '', name: '', content: '', modelId: '' });
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     getDocs(collection(db, 'models'))
       .then(s => setModels(s.docs.map(d => ({ id: d.id, ...d.data() } as Model))))
       .catch(err => handleFirestoreError(err, OperationType.GET, 'models'));
+
+    onSnapshot(query(collection(db, 'prompts'), orderBy('createdAt', 'desc')), s => {
+      setPrompts(s.docs.map(d => ({ id: d.id, ...d.data() } as Prompt)));
+    });
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.content || !form.modelId) return alert('Data wajib diisi!');
-    await addDoc(collection(db, 'prompts'), {
-      ...form,
-      likes: 0,
-      copyCount: 0,
-      downloadCount: 0,
-      createdAt: new Date().toISOString(),
-      status: 'active'
-    });
-    setForm({ name: '', content: '', modelId: '' });
-    alert('Prompt berhasil ditambahkan!');
+    
+    try {
+      if (isEditing && form.id) {
+        await updateDoc(doc(db, 'prompts', form.id), {
+          name: form.name,
+          content: form.content,
+          modelId: form.modelId,
+          updatedAt: new Date().toISOString()
+        });
+        alert('Prompt berhasil diperbarui!');
+      } else {
+        await addDoc(collection(db, 'prompts'), {
+          name: form.name,
+          content: form.content,
+          modelId: form.modelId,
+          likes: 0,
+          copyCount: 0,
+          downloadCount: 0,
+          createdAt: new Date().toISOString(),
+          status: 'active'
+        });
+        alert('Prompt berhasil ditambahkan!');
+      }
+      setForm({ id: '', name: '', content: '', modelId: '' });
+      setIsEditing(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'prompts');
+    }
+  };
+
+  const handleEdit = (p: Prompt) => {
+    setForm({ id: p.id, name: p.name, content: p.content, modelId: p.modelId });
+    setIsEditing(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Hapus prompt ini secara permanen?')) return;
+    try {
+      await deleteDoc(doc(db, 'prompts', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `prompts/${id}`);
+    }
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-2xl">
-      <h3 className="text-xl font-bold mb-8">Tambah Prompt</h3>
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-2">Nama Prompt</label>
-          <input 
-            type="text" 
-            className="w-full h-12 bg-white/5 border border-white/5 rounded-xl px-5 text-sm outline-none"
-            value={form.name}
-            onChange={e => setForm({...form, name: e.target.value})}
-            placeholder="Contoh: Profesional SEO"
-          />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col lg:flex-row gap-12">
+      <div className="w-full lg:w-1/2">
+        <h3 className="text-xl font-bold mb-8">{isEditing ? 'Edit Prompt' : 'Tambah Prompt'}</h3>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* ... existing form fields ... */}
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-2">Nama Prompt</label>
+            <input 
+              type="text" 
+              className="w-full h-12 bg-white/5 border border-white/5 rounded-xl px-5 text-sm outline-none"
+              value={form.name}
+              onChange={e => setForm({...form, name: e.target.value})}
+              placeholder="Contoh: Profesional SEO"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-2">Pilih Model</label>
+            <select 
+              className="w-full h-12 bg-white/5 border border-white/5 rounded-xl px-5 text-sm outline-none appearance-none"
+              value={form.modelId}
+              onChange={e => setForm({...form, modelId: e.target.value})}
+            >
+              <option value="" disabled className="bg-zinc-900">Pilih...</option>
+              {models.map(m => <option key={m.id} value={m.id} className="bg-zinc-900">{m.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-2">Isi Prompt</label>
+            <textarea 
+              className="w-full h-40 bg-white/5 border border-white/5 rounded-xl p-5 text-sm outline-none resize-none"
+              value={form.content}
+              onChange={e => setForm({...form, content: e.target.value})}
+              placeholder="Tulis instruksi lengkap..."
+            />
+          </div>
+          <div className="flex gap-3">
+            <button type="submit" className="flex-1 btn-primary h-12">
+              {isEditing ? 'Update Prompt' : 'Simpan Prompt'}
+            </button>
+            {isEditing && (
+              <button 
+                type="button" 
+                onClick={() => { setIsEditing(false); setForm({ id: '', name: '', content: '', modelId: '' }); }}
+                className="btn-secondary px-6"
+              >
+                Batal
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="flex-1">
+        <h3 className="text-xl font-bold mb-8 text-white/40 italic">List Prompts ({prompts.length})</h3>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 scrollbar-hide">
+          {prompts.map(p => (
+            <div key={p.id} className="glass p-4 rounded-2xl flex items-center justify-between group border-white/5 hover:border-white/20 transition-all">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate pr-4">{p.name}</p>
+                <p className="text-[10px] text-white/20 font-bold uppercase">{models.find(m => m.id === p.modelId)?.name || 'Unknown model'}</p>
+              </div>
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => handleEdit(p)} className="p-2 glass rounded-lg text-blue-400 hover:bg-blue-400/10">
+                  <Database className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleDelete(p.id)} className="p-2 glass rounded-lg text-red-500 hover:bg-red-500/10">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-        <div>
-          <label className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-2">Pilih Model</label>
-          <select 
-            className="w-full h-12 bg-white/5 border border-white/5 rounded-xl px-5 text-sm outline-none appearance-none"
-            value={form.modelId}
-            onChange={e => setForm({...form, modelId: e.target.value})}
-          >
-            <option value="" disabled className="bg-zinc-900">Pilih...</option>
-            {models.map(m => <option key={m.id} value={m.id} className="bg-zinc-900">{m.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-2">Isi Prompt</label>
-          <textarea 
-            className="w-full h-40 bg-white/5 border border-white/5 rounded-xl p-5 text-sm outline-none resize-none"
-            value={form.content}
-            onChange={e => setForm({...form, content: e.target.value})}
-            placeholder="Tulis instruksi lengkap..."
-          />
-        </div>
-        <button type="submit" className="w-full btn-primary h-12">Simpan Prompt</button>
-      </form>
+      </div>
     </motion.div>
   );
 }
@@ -156,6 +218,7 @@ function AddPromptTab() {
 function ModelTab() {
   const [models, setModels] = useState<Model[]>([]);
   const [name, setName] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'models'));
@@ -165,14 +228,24 @@ function ModelTab() {
     );
   }, []);
 
-  const addModel = async () => {
+  const saveModel = async () => {
     if (!name.trim()) return;
     try {
-      await addDoc(collection(db, 'models'), { name: name.trim() });
+      if (editId) {
+        await updateDoc(doc(db, 'models', editId), { name: name.trim() });
+        setEditId(null);
+      } else {
+        await addDoc(collection(db, 'models'), { name: name.trim() });
+      }
       setName('');
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'models');
+      handleFirestoreError(err, OperationType.WRITE, editId ? `models/${editId}` : 'models');
     }
+  };
+
+  const handleEdit = (m: Model) => {
+    setName(m.name);
+    setEditId(m.id);
   };
 
   const deleteModel = async (id: string) => {
@@ -190,20 +263,28 @@ function ModelTab() {
       <div className="flex gap-4 mb-10">
         <input 
           type="text" 
-          className="flex-1 h-14 bg-white/5 border border-white/10 rounded-2xl px-6 outline-none"
+          className="flex-1 h-14 bg-white/5 border border-white/10 rounded-2xl px-6 outline-none focus:border-white/20 transition-all font-bold"
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Nama Model (Contoh: GPT-4o)"
         />
-        <button onClick={addModel} className="px-8 h-14 bg-white text-black font-black uppercase tracking-widest rounded-2xl">Tambah</button>
+        <button onClick={saveModel} className="px-8 h-14 bg-white text-black font-black uppercase tracking-widest rounded-2xl">
+          {editId ? 'Update' : 'Tambah'}
+        </button>
+        {editId && <button onClick={() => { setEditId(null); setName(''); }} className="px-6 h-14 bg-white/5 text-white/40 font-bold rounded-2xl">Batal</button>}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {models.map(m => (
-          <div key={m.id} className="glass p-5 rounded-2xl flex items-center justify-between group">
+          <div key={m.id} className="glass p-5 rounded-2xl flex items-center justify-between group border-white/5 hover:border-white/20 transition-all">
             <span className="font-bold">{m.name}</span>
-            <button onClick={() => deleteModel(m.id)} className="p-2 opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <button onClick={() => handleEdit(m)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg">
+                <Database className="w-4 h-4" />
+              </button>
+              <button onClick={() => deleteModel(m.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -323,6 +404,16 @@ function ServiceTab() {
     );
   }, []);
 
+  const deleteSession = async (id: string) => {
+    if (!confirm('Hapus sesi chat ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'chat_sessions', id));
+      setActiveSession(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `chat_sessions/${id}`);
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full flex flex-col max-h-[85vh] md:max-h-none">
       <div className="flex items-center justify-between mb-4 md:mb-8 shrink-0">
@@ -330,14 +421,24 @@ function ServiceTab() {
           <h3 className="text-xl md:text-3xl font-black italic tracking-tighter">Customer Service</h3>
           <span className="hidden md:inline-block px-2 py-0.5 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-white/40">Real-time</span>
         </div>
-        {activeSession && (
-          <button 
-            onClick={() => setActiveSession(null)}
-            className="md:hidden text-[10px] font-black uppercase tracking-[0.2em] text-white/40 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2"
-          >
-            ← Daftar Chat
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {activeSession && (
+            <button 
+              onClick={() => deleteSession(activeSession)}
+              className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          )}
+          {activeSession && (
+            <button 
+              onClick={() => setActiveSession(null)}
+              className="md:hidden text-[10px] font-black uppercase tracking-[0.2em] text-white/40 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2"
+            >
+              ← Daftar Chat
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden">

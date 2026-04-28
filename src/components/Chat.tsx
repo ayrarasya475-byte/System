@@ -26,6 +26,7 @@ export default function Chat({ onClose, showToast }: { onClose: () => void, show
     setDoc(sessionRef, {
       userId: userUid,
       userEmail: auth.currentUser.email,
+      userName: auth.currentUser.displayName,
       updatedAt: new Date().toISOString(),
       status: 'open'
     }, { merge: true })

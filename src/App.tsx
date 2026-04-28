@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, OperationType, handleFirestoreError } from './lib/firebase';
 import { Prompt, Model } from './types';
@@ -10,7 +10,7 @@ import PromptGrid from './components/PromptGrid';
 import AdminPanel from './components/AdminPanel';
 import Chat from './components/Chat';
 import SuggestionForm from './components/SuggestionForm';
-import { Search, Shield, User, LogOut } from 'lucide-react';
+import { Search, Shield, User, LogOut, Terminal, Database, MessageSquare, X } from 'lucide-react';
 import { cn } from './lib/utils';
 
 export default function App() {
@@ -22,8 +22,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [adminPass, setAdminPass] = useState('');
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const [isBooting, setIsBooting] = useState(true);
+  const [bootStatus, setBootStatus] = useState('Initializing Core...');
 
   const showToast = (message: string, type: 'error' | 'success' = 'error') => {
     setToast({ message, type });
@@ -31,33 +34,34 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Simplified query to avoid index requirement during initial setup
-    const q = query(
-      collection(db, 'prompts')
-    );
-    const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        setPrompts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt)));
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'prompts');
-        showToast("Gagal memuat data prompt.");
-      }
-    );
-    return () => unsubscribe();
-  }, []);
+    const sequence = async () => {
+      try {
+        setBootStatus('Connecting to Cloud...');
+        await new Promise(r => setTimeout(r, 800));
+        setBootStatus('Verifying Security Protocol...');
+        await new Promise(r => setTimeout(r, 600));
+        setBootStatus('Syncing Database...');
+        
+        // Let initialization finish
+        const q = query(collection(db, 'prompts'));
+        onSnapshot(q, (s) => {
+          setPrompts(s.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt)));
+          if (isBooting) {
+            setBootStatus('Systems Ready.');
+            setTimeout(() => setIsBooting(false), 500);
+          }
+        });
 
-  useEffect(() => {
-    const q = query(collection(db, 'models'));
-    const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        setModels(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Model)));
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'models');
+        onSnapshot(query(collection(db, 'models')), (s) => {
+          setModels(s.docs.map(doc => ({ id: doc.id, ...doc.data() } as Model)));
+        });
+
+      } catch (err) {
+        setBootStatus('System Error: Database unreachable.');
+        console.error(err);
       }
-    );
-    return () => unsubscribe();
+    };
+    sequence();
   }, []);
 
   const filteredPrompts = [...prompts]
@@ -76,15 +80,105 @@ export default function App() {
       return dateB - dateA;
     });
 
-  const handleAdminLogin = () => {
-    if (adminPass === '92727292827') {
-      setView('admin');
-      setIsAdminLoginOpen(false);
+  const handleAdminLogin = async () => {
+    if (!adminPass.trim()) return;
+    try {
+      if (user) {
+        showToast('Verifying Authorization...', 'success');
+        // We write to a "challenge" path. The rules only allow this if the passcode matches.
+        // This keeps the passcode out of the source code!
+        await setDoc(doc(db, 'admin_authorizations', user.uid), {
+          passcode: adminPass,
+          authorizedAt: new Date().toISOString()
+        });
+        
+        setIsAdminAuthenticated(true);
+        setView('admin');
+        setIsAdminLoginOpen(false);
+        setAdminPass('');
+        showToast('Akses Admin Diterima', 'success');
+      } else {
+        showToast('Silakan login dengan Google terlebih dahulu.');
+      }
+    } catch (err: any) {
+      // If rules reject the write, it means the passcode was wrong.
+      showToast('Sandi akses salah atau otorisasi ditolak.');
       setAdminPass('');
-    } else {
-      showToast('Sandi akses salah!');
+      console.error('Auth check failed:', err.message);
     }
   };
+
+  if (isBooting) {
+    return (
+      <div className="fixed inset-0 z-[300] bg-[#030303] flex flex-col items-center justify-center p-6 text-center">
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="mb-10 relative"
+        >
+          {/* Main Logo Container */}
+          <div className="w-32 h-32 relative">
+            {/* outer rings */}
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 border-[1px] border-white/5 rounded-full"
+            />
+            <motion.div 
+              animate={{ rotate: -360 }}
+              transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-4 border-[1px] border-white/5 rounded-full border-t-white/20"
+            />
+            {/* pulse core */}
+            <motion.div 
+              animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute inset-8 bg-white/10 rounded-full blur-xl"
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Terminal className="w-10 h-10 text-white" />
+            </div>
+          </div>
+        </motion.div>
+
+        <div className="space-y-3">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center justify-center gap-3"
+          >
+            <span className="w-12 h-[1px] bg-white/10" />
+            <h2 className="text-2xl font-black italic tracking-tighter text-white">GREXTAR</h2>
+            <span className="w-12 h-[1px] bg-white/10" />
+          </motion.div>
+          
+          <motion.div
+            key={bootStatus}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-2"
+          >
+            <p className="text-[10px] uppercase font-black tracking-[0.6em] text-white/40 pl-[0.6em]">
+              {bootStatus}
+            </p>
+            {bootStatus.includes('Error') && (
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-6 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest text-white transition-all"
+              >
+                Retry Connection
+              </button>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Binary decoration */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 opacity-5 font-mono text-[8px] tracking-[1em] whitespace-nowrap overflow-hidden w-full text-center">
+          01011001 01001111 01010101 01010010 01110011 01010101 01000011 01000011 01000101 01010011 01010011
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -223,6 +317,7 @@ export default function App() {
         <button 
           onClick={() => {
             if (view === 'admin') setView('browse');
+            else if (isAdminAuthenticated) setView('admin');
             else setIsAdminLoginOpen(true);
           }}
           className={cn(
@@ -234,7 +329,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* Admin Login Modal */}
+      {/* Admin Verification Modal */}
       <AnimatePresence>
         {isAdminLoginOpen && (
           <motion.div 
@@ -248,20 +343,22 @@ export default function App() {
               <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-white/40">
                 <Shield className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold mb-2">Admin Panel</h3>
-              <p className="text-xs text-white/30 mb-6">Verifikasi identitas diperlukan.</p>
+              <h3 className="text-xl font-bold mb-2">Security Check</h3>
+              <p className="text-xs text-white/30 mb-6">Enter administrative passphrase</p>
+              
               <input 
                 type="password"
-                placeholder="Masukkan Sandi"
+                placeholder="••••••••"
                 autoFocus
                 value={adminPass}
                 onChange={(e) => setAdminPass(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
-                className="w-full h-12 bg-white/5 border border-white/5 rounded-2xl px-5 text-center outline-none focus:border-white/20 mb-4 tracking-[0.5em]"
+                className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-5 text-center outline-none focus:border-white/20 mb-6 tracking-[0.5em] text-lg font-bold"
               />
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setIsAdminLoginOpen(false)} className="btn-secondary">Batal</button>
-                <button onClick={handleAdminLogin} className="btn-primary">Masuk</button>
+
+              <div className="flex flex-col gap-3">
+                <button onClick={handleAdminLogin} className="btn-primary w-full h-12">Authorize Access</button>
+                <button onClick={() => setIsAdminLoginOpen(false)} className="text-[10px] font-black uppercase tracking-widest text-white/20 hover:text-white/40 transition-all">Cancel</button>
               </div>
             </motion.div>
           </motion.div>

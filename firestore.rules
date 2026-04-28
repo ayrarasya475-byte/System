@@ -8,11 +8,11 @@ service cloud.firestore {
 
     // Global helpers
     function isSignedIn() { return request.auth != null; }
-    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function isEmailVerified() { return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com'); }
     function isAdmin() { 
       return isSignedIn() && (
         request.auth.token.email == 'ayrarasya475@gmail.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        exists(/databases/$(database)/documents/admin_authorizations/$(request.auth.uid))
       );
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
@@ -39,14 +39,14 @@ service cloud.firestore {
     // Suggestions
     match /suggestions/{suggestionId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn() && isEmailVerified();
+      allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
     // Chat Sessions (sessionId is the userId)
     match /chat_sessions/{sessionId} {
       allow read: if isAdmin() || isOwner(sessionId);
-      allow create: if isSignedIn() && isEmailVerified() && sessionId == request.auth.uid;
+      allow create: if isSignedIn() && sessionId == request.auth.uid;
       allow update: if isAdmin() || isOwner(sessionId);
       allow delete: if isAdmin();
     }
@@ -57,16 +57,29 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Stats Logs
-    match /stats_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if true; // Open to track anonymous interactions if needed, but safer with isSignedIn()
+    // User audit collection
+    match /users/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow write: if isOwner(userId);
     }
 
-    // User Likes
-    match /users/{userId}/likes/{promptId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId);
+    // Prompt likes mapping
+    match /prompt_likes/{likeId} {
+      allow read: if true;
+      allow create: if isSignedIn() && likeId.endsWith(request.auth.uid);
+      allow delete: if isAdmin() || likeId.endsWith(request.auth.uid);
+    }
+
+    // Admin Authorization Self-Service
+    match /admin_authorizations/{uid} {
+      allow read: if isSignedIn();
+      allow create: if request.auth.uid == uid && incoming().passcode == '92727292827';
+      allow delete: if request.auth.uid == uid;
+    }
+
+    match /stats_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true;
     }
   }
 }

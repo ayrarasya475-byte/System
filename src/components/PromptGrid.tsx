@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Prompt, Model } from '../types';
 import { db, auth } from '../lib/firebase';
-import { doc, updateDoc, increment, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, increment, setDoc, query, collection, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firebase';
 import { Copy, Download, Heart, Check, Terminal, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -82,13 +82,30 @@ function PromptCard({ prompt, models, showToast }: PromptCardProps) {
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!auth.currentUser) return showToast("Silakan login untuk memberikan like.", "error");
-    setIsLiked(!isLiked);
+    
+    const userId = auth.currentUser.uid;
+    const likeId = `${prompt.id}_${userId}`;
+    const likeRef = doc(db, 'prompt_likes', likeId);
+
     try {
+      // Only one like per user/prompt - enforced by doc ID and 'create' rule
+      await setDoc(likeRef, {
+        promptId: prompt.id,
+        userId: userId,
+        createdAt: serverTimestamp()
+      });
+      // If setDoc succeeds (didn't exist), then increment
       await updateDoc(doc(db, 'prompts', prompt.id), { likes: increment(1) });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `prompts/${prompt.id}`);
+      setIsLiked(true);
+      logStat('like');
+      showToast("Telah disukai!", "success");
+    } catch (error: any) {
+      if (error.code === 'permission-denied' || error.message?.includes('insufficient')) {
+        showToast("Anda sudah menyukai prompt ini.", "error");
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, `prompts/${prompt.id}`);
+      }
     }
-    logStat('like');
   };
 
   return (
