@@ -23,6 +23,12 @@ export default function App() {
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+
+  const showToast = (message: string, type: 'error' | 'success' = 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     // Simplified query to avoid index requirement during initial setup
@@ -33,7 +39,10 @@ export default function App() {
       (snapshot) => {
         setPrompts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Prompt)));
       },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'prompts')
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'prompts');
+        showToast("Gagal memuat data prompt.");
+      }
     );
     return () => unsubscribe();
   }, []);
@@ -44,18 +53,20 @@ export default function App() {
       (snapshot) => {
         setModels(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Model)));
       },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'models')
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'models');
+      }
     );
     return () => unsubscribe();
   }, []);
 
-  const filteredPrompts = prompts
+  const filteredPrompts = [...prompts]
     .filter(p => {
       // Filter for active status in the UI to skip index Requirement
       const isActive = p.status === 'active';
       const matchesModel = !selectedModel || p.modelId === selectedModel;
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            p.content.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            (p.content || '').toLowerCase().includes(searchQuery.toLowerCase());
       return isActive && matchesModel && matchesSearch;
     })
     // Sort in-memory to skip index requirement
@@ -71,7 +82,7 @@ export default function App() {
       setIsAdminLoginOpen(false);
       setAdminPass('');
     } else {
-      alert('Sandi salah!');
+      showToast('Sandi akses salah!');
     }
   };
 
@@ -161,13 +172,13 @@ export default function App() {
               ))}
             </div>
 
-            <PromptGrid prompts={filteredPrompts} models={models} />
+            <PromptGrid prompts={filteredPrompts} models={models} showToast={showToast} />
           </div>
         )}
 
         <AnimatePresence mode="wait">
-          {view === 'chat' && <Chat key="chat" onClose={() => setView('browse')} />}
-          {view === 'suggest' && <SuggestionForm key="suggest" onClose={() => setView('browse')} />}
+          {view === 'chat' && <Chat key="chat" onClose={() => setView('browse')} showToast={showToast} />}
+          {view === 'suggest' && <SuggestionForm key="suggest" onClose={() => setView('browse')} showToast={showToast} />}
           {view === 'admin' && <AdminPanel key="admin" onClose={() => setView('browse')} />}
           {view === 'faq' && (
             <motion.div 
@@ -253,6 +264,23 @@ export default function App() {
                 <button onClick={handleAdminLogin} className="btn-primary">Masuk</button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 50, opacity: 0 }}
+            className={cn(
+              "fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl text-xs font-bold shadow-2xl backdrop-blur-md border",
+              toast.type === 'error' ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+            )}
+          >
+            {toast.message}
           </motion.div>
         )}
       </AnimatePresence>

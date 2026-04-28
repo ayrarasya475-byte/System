@@ -10,19 +10,27 @@ import { cn } from '../lib/utils';
 interface PromptGridProps {
   prompts: Prompt[];
   models: Model[];
+  showToast: (msg: string, type: 'error' | 'success') => void;
 }
 
-export default function PromptGrid({ prompts, models }: PromptGridProps) {
+export default function PromptGrid({ prompts, models, showToast }: PromptGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-7xl">
       {prompts.map((prompt) => (
-        <PromptCard key={prompt.id} prompt={prompt} models={models} />
+        <PromptCard key={prompt.id} prompt={prompt} models={models} showToast={showToast} />
       ))}
     </div>
   );
 }
 
-function PromptCard({ prompt, models }: { prompt: Prompt; models: Model[]; key?: string }) {
+interface PromptCardProps {
+  key: string;
+  prompt: Prompt;
+  models: Model[];
+  showToast: (msg: string, type: 'error' | 'success') => void;
+}
+
+function PromptCard({ prompt, models, showToast }: PromptCardProps) {
   const [isCopied, setIsCopied] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [showFull, setShowFull] = useState(false);
@@ -73,7 +81,7 @@ function PromptCard({ prompt, models }: { prompt: Prompt; models: Model[]; key?:
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!auth.currentUser) return alert("Silakan login untuk like.");
+    if (!auth.currentUser) return showToast("Silakan login untuk memberikan like.", "error");
     setIsLiked(!isLiked);
     try {
       await updateDoc(doc(db, 'prompts', prompt.id), { likes: increment(1) });

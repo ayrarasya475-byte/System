@@ -6,14 +6,18 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
-export default function Chat({ onClose }: { onClose: () => void, key?: string }) {
+export default function Chat({ onClose, showToast }: { onClose: () => void, showToast: any, key?: string }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser) {
+      showToast("Silakan login untuk mengakses bantuan.", "error");
+      onClose();
+      return;
+    }
     
     const userUid = auth.currentUser.uid;
     const sessionRef = doc(db, 'chat_sessions', userUid);
@@ -103,7 +107,7 @@ export default function Chat({ onClose }: { onClose: () => void, key?: string })
               )}>
                 {m.text}
                 <p className={cn("text-[8px] mt-1.5 font-bold opacity-40 text-right")}>
-                  {format(new Date(m.createdAt), 'HH:mm')}
+                  {m.createdAt ? format(new Date(m.createdAt), 'HH:mm') : ''}
                 </p>
               </div>
             </div>

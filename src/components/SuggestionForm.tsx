@@ -5,14 +5,14 @@ import { X, Send, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 
-export default function SuggestionForm({ onClose }: { onClose: () => void, key?: string }) {
+export default function SuggestionForm({ onClose, showToast }: { onClose: () => void, showToast: any, key?: string }) {
   const [form, setForm] = useState({ promptName: '', details: '', status: 'legal' as 'legal' | 'illegal' });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return alert('Silakan login dahulu.');
-    if (!form.promptName || !form.details) return alert('Data wajib diisi!');
+    if (!auth.currentUser) return showToast('Silakan login terlebih dahulu.', 'error');
+    if (!form.promptName || !form.details) return showToast('Data wajib diisi!', 'error');
 
     setLoading(true);
     try {
@@ -22,10 +22,10 @@ export default function SuggestionForm({ onClose }: { onClose: () => void, key?:
         userId: auth.currentUser.uid,
         createdAt: new Date().toISOString()
       });
-      alert('Terima kasih! Saran Anda telah kami terima.');
+      showToast('Saran Anda telah kami terima!', 'success');
       onClose();
     } catch (e) {
-      alert('Error saat mengirim saran.');
+      showToast('Gagal mengirim saran.', 'error');
     } finally {
       setLoading(false);
     }

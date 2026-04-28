@@ -166,13 +166,22 @@ function ModelTab() {
   }, []);
 
   const addModel = async () => {
-    if (!name) return;
-    await addDoc(collection(db, 'models'), { name });
-    setName('');
+    if (!name.trim()) return;
+    try {
+      await addDoc(collection(db, 'models'), { name: name.trim() });
+      setName('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'models');
+    }
   };
 
   const deleteModel = async (id: string) => {
-    if (confirm('Hapus model ini?')) await deleteDoc(doc(db, 'models', id));
+    if (!confirm('Hapus model ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'models', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `models/${id}`);
+    }
   };
 
   return (
@@ -277,12 +286,12 @@ function DataTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {prompts.sort((a,b) => (b.copyCount + b.downloadCount) - (a.copyCount + a.downloadCount)).map(p => (
+              {[...prompts].sort((a,b) => ((b.copyCount || 0) + (b.downloadCount || 0)) - ((a.copyCount || 0) + (a.downloadCount || 0))).map(p => (
                 <tr key={p.id} className="text-sm">
                   <td className="px-6 py-4 font-bold">{p.name}</td>
                   <td className="px-6 py-4 text-white/40">{p.modelId}</td>
-                  <td className="px-6 py-4 text-center">{p.copyCount}</td>
-                  <td className="px-6 py-4 text-center">{p.downloadCount}</td>
+                  <td className="px-6 py-4 text-center">{p.copyCount || 0}</td>
+                  <td className="px-6 py-4 text-center">{p.downloadCount || 0}</td>
                 </tr>
               ))}
             </tbody>
@@ -351,7 +360,7 @@ function ServiceTab() {
               <div className="flex justify-between items-start mb-1">
                 <p className="text-[11px] md:text-xs font-bold truncate leading-tight uppercase tracking-tight max-w-[70%]">{s.userEmail || 'Anonymous User'}</p>
                 <p className={cn("text-[8px] font-black uppercase tracking-widest shrink-0 ml-2", activeSession === s.id ? "text-black/40" : "text-white/20")}>
-                  {format(new Date(s.updatedAt), 'HH:mm')}
+                  {s.updatedAt ? format(new Date(s.updatedAt), 'HH:mm') : '--:--'}
                 </p>
               </div>
               <p className={cn(
@@ -445,7 +454,7 @@ function AdminChat({ sessionId }: { sessionId: string }) {
             )}>
               {m.text}
               <p className={cn("text-[8px] mt-1.5 font-bold opacity-40 text-right uppercase tracking-[0.1em]", m.senderId === 'admin' ? "text-black" : "text-white")}>
-                {format(new Date(m.createdAt), 'HH:mm')}
+                {m.createdAt ? format(new Date(m.createdAt), 'HH:mm') : ''}
               </p>
             </div>
           </div>
