@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, setDoc, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, signInWithGoogle, logout, OperationType, handleFirestoreError } from './lib/firebase';
 import { Prompt, Model } from './types';
@@ -95,6 +95,15 @@ export default function App() {
     try {
       if (user) {
         showToast('Verifying Authorization...', 'success');
+        
+        // Cek jumlah admin aktif
+        const snap = await getDocs(collection(db, 'admin_authorizations'));
+        const isAlreadyAdmin = snap.docs.some(d => d.id === user.uid);
+        if (!isAlreadyAdmin && snap.size >= 20) {
+          showToast('Batas maksimum login admin (20 orang) telah tercapai!');
+          return;
+        }
+
         // We write to a "challenge" path. The rules only allow this if the passcode matches.
         // This keeps the passcode out of the source code!
         await setDoc(doc(db, 'admin_authorizations', user.uid), {

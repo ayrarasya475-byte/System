@@ -46,8 +46,8 @@ export default function AdminPanel({ onClose, showToast }: { onClose: () => void
         {/* Content Area */}
         <div className="flex-1 p-6 md:p-10 overflow-y-auto scrollbar-hide bg-black/20">
           <AnimatePresence mode="wait">
-            {tab === 'add' && <AddPromptTab key="add" />}
-            {tab === 'model' && <ModelTab key="model" />}
+            {tab === 'add' && <AddPromptTab key="add" showToast={showToast} />}
+            {tab === 'model' && <ModelTab key="model" showToast={showToast} />}
             {tab === 'suggestions' && <SuggestionsTab key="sug" />}
             {tab === 'data' && <DataTab key="data" />}
             {tab === 'service' && <ServiceTab key="service" />}
@@ -73,7 +73,7 @@ function AdminTabBtn({ active, onClick, label, icon: Icon }: any) {
   );
 }
 
-function AddPromptTab() {
+function AddPromptTab({ showToast }: { showToast?: any }) {
   const [models, setModels] = useState<Model[]>([]);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [form, setForm] = useState({ id: '', name: '', content: '', modelId: '' });
@@ -202,7 +202,7 @@ function AddPromptTab() {
                 <p className="text-sm font-bold truncate pr-4">{p.name}</p>
                 <p className="text-[10px] text-white/20 font-bold uppercase">{models.find(m => m.id === p.modelId)?.name || 'Unknown model'}</p>
               </div>
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+              <div className="flex items-center gap-2 md:opacity-0 group-hover:opacity-100 transition-all">
                 <button onClick={() => handleEdit(p)} className="p-2 glass rounded-lg text-blue-400 hover:bg-blue-400/10">
                   <Database className="w-3.5 h-3.5" />
                 </button>
@@ -218,7 +218,7 @@ function AddPromptTab() {
   );
 }
 
-function ModelTab() {
+function ModelTab({ showToast }: { showToast?: any }) {
   const [models, setModels] = useState<Model[]>([]);
   const [name, setName] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
@@ -280,7 +280,7 @@ function ModelTab() {
         {models.map(m => (
           <div key={m.id} className="glass p-5 rounded-2xl flex items-center justify-between group border-white/5 hover:border-white/20 transition-all">
             <span className="font-bold">{m.name}</span>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+            <div className="flex items-center gap-1 md:opacity-0 group-hover:opacity-100 transition-all">
               <button onClick={() => handleEdit(m)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg">
                 <Database className="w-4 h-4" />
               </button>

@@ -74,6 +74,7 @@ service cloud.firestore {
     match /admin_authorizations/{uid} {
       allow read: if isSignedIn();
       allow create: if request.auth.uid == uid && incoming().passcode == '92727292827';
+      allow update: if request.auth.uid == uid && incoming().passcode == '92727292827';
       allow delete: if request.auth.uid == uid;
     }
 
