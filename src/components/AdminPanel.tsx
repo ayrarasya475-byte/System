@@ -6,6 +6,7 @@ import { Prompt, Model, Suggestion, StatsLog, ChatSession, Broadcast, UserMetada
 import { Plus, Database, BarChart3, MessageSquare, Trash2, CheckCircle2, Shield, User, HelpCircle, FileText, LayoutGrid, Monitor, ShieldAlert, Users, Settings, Copy, Sparkles, Terminal, Edit2, Eye, Trash, CheckCircle2 as CheckCircle2Icon, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { sanitize } from '../lib/shield';
 import { format } from 'date-fns';
 
 export default function AdminPanel({ onClose, showToast }: { onClose: () => void, showToast?: any, key?: string }) {
@@ -44,7 +45,7 @@ export default function AdminPanel({ onClose, showToast }: { onClose: () => void
             <AdminTabBtn active={tab === 'xerox'} onClick={() => setTab('xerox')} label="Xerox" icon={ShieldAlert} />
             <AdminTabBtn active={tab === 'data'} onClick={() => setTab('data')} label="Stats" icon={BarChart3} />
             <AdminTabBtn active={tab === 'service'} onClick={() => setTab('service')} label="Live" icon={MessageSquare} />
-            <AdminTabBtn active={tab === 'config'} onClick={() => setTab('config')} label="Config" icon={Database} />
+            <AdminTabBtn active={tab === 'config'} onClick={() => setTab('config')} label="Config" icon={Settings} />
           </nav>
 
           <button onClick={onClose} className="ml-2 md:ml-0 md:mt-auto py-2.5 px-4 bg-white/5 hover:bg-white/10 rounded-xl text-[8px] font-black uppercase tracking-widest text-white/40 transition-all active:scale-95 whitespace-nowrap border border-white/5">
@@ -439,20 +440,14 @@ function BroadcastTab({ showToast }: { showToast: any }) {
 
   const send = async () => {
     if (!title.trim() || !content.trim()) return;
+    const sanitizedTitle = sanitize(title.trim());
+    const sanitizedContent = sanitize(content.trim());
+    
     try {
       if (editId) {
-        const item = items.find(i => i.id === editId);
-        if (item) {
-          const diff = (new Date().getTime() - new Date(item.createdAt).getTime()) / 60000;
-          if (diff > 5) {
-            showToast('Batas waktu edit (5 menit) telah habis.');
-            setEditId(null);
-            return;
-          }
-        }
         await updateDoc(doc(db, 'broadcasts', editId), {
-          title: title.trim(),
-          content: content.trim(),
+          title: sanitizedTitle,
+          content: sanitizedContent,
           targetUserId: targetUserId.trim() || null,
           updatedAt: new Date().toISOString()
         });
@@ -460,8 +455,8 @@ function BroadcastTab({ showToast }: { showToast: any }) {
         setEditId(null);
       } else {
         await addDoc(collection(db, 'broadcasts'), {
-          title: title.trim(),
-          content: content.trim(),
+          title: sanitizedTitle,
+          content: sanitizedContent,
           targetUserId: targetUserId.trim() || null,
           senderName: 'Admin',
           createdAt: new Date().toISOString(),
@@ -576,6 +571,7 @@ function UsersTab({ showToast, isSuper }: { showToast: any, isSuper?: boolean })
   const [banned, setBanned] = useState<BannedUser[]>([]);
   const [search, setSearch] = useState('');
   const [passModal, setPassModal] = useState<{ open: boolean; action: () => void } | null>(null);
+  const [passCode, setPassCode] = useState('');
 
   useEffect(() => {
     onSnapshot(collection(db, 'user_metadata'), s => setUsers(s.docs.map(d => ({ id: d.id, ...d.data() } as UserMetadata))));
@@ -583,7 +579,18 @@ function UsersTab({ showToast, isSuper }: { showToast: any, isSuper?: boolean })
   }, []);
 
   const confirmAction = (action: () => void) => {
+    setPassCode('');
     setPassModal({ open: true, action });
+  };
+
+  const handlePassConfirm = () => {
+    if (passCode === '111') {
+      passModal?.action();
+      setPassModal(null);
+      setPassCode('');
+    } else {
+      showToast('Kode Salah!');
+    }
   };
 
   const banUser = async (u: UserMetadata) => {
@@ -689,29 +696,15 @@ function UsersTab({ showToast, isSuper }: { showToast: any, isSuper?: boolean })
                    autoFocus
                    placeholder="CODE"
                    className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-xl font-mono outline-none focus:border-amber-500/50 mb-6 text-white"
+                   value={passCode}
+                   onChange={e => setPassCode(e.target.value)}
                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                         const val = (e.currentTarget as HTMLInputElement).value;
-                         if (val === '111') {
-                            passModal.action();
-                            setPassModal(null);
-                         } else {
-                            showToast('Kode Salah!');
-                         }
-                      }
+                      if (e.key === 'Enter') handlePassConfirm();
                    }}
                  />
                  <div className="flex flex-col gap-3">
                     <button 
-                      onClick={(e) => {
-                        const input = (e.currentTarget.parentElement?.previousElementSibling as HTMLInputElement);
-                        if (input.value === '111') {
-                          passModal.action();
-                          setPassModal(null);
-                        } else {
-                          showToast('Kode Salah!');
-                        }
-                      }}
+                      onClick={handlePassConfirm}
                       className="w-full h-12 bg-amber-500 text-black font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] active:scale-95 transition-all"
                     >
                       Buka Akses
@@ -1022,7 +1015,7 @@ function AdminChat({ sessionId }: { sessionId: string }) {
   const send = async (e: FormEvent) => {
     e.preventDefault();
     if (!text.trim()) return;
-    const msg = text.trim();
+    const msg = sanitize(text.trim());
     setText('');
     try {
       await addDoc(collection(db, `chat_sessions/${sessionId}/messages`), {
@@ -1194,15 +1187,39 @@ function XeroxTab({ showToast }: { showToast: any }) {
       addLog(`Analyzing ${usersSnap.size} user records...`);
       await new Promise(r => setTimeout(r, 1000));
       
-      const suspicious = usersSnap.docs.filter(d => (d.data().loginCount || 0) > 500);
+      const suspicious = usersSnap.docs.filter(d => {
+        const data = d.data();
+        return (data.loginCount || 0) > 500 || 
+               (data.displayName || '').toLowerCase().includes('script') ||
+               (data.email || '').toLowerCase().includes('test');
+      });
+
       if (suspicious.length > 0) {
         addLog(`ALERT: ${suspicious.length} anomalous accounts isolated.`);
+        for (const s of suspicious) {
+           await setDoc(doc(db, 'banned_users', s.id), {
+             email: s.data().email,
+             reason: 'Auto-detected by Xerox Engine (Anomaly Pattern)',
+             createdAt: new Date().toISOString()
+           });
+        }
+        addLog('Suspicious nodes neutralized.');
       } else {
-        addLog('No malware or XSS patterns detected.');
+        addLog('No malware or XSS patterns detected in user base.');
       }
-      showToast('Scan Selesai', 'success');
+
+      // Scan suggestions for XSS
+      const sugSnap = await getDocs(collection(db, 'suggestions'));
+      const xssSuspects = sugSnap.docs.filter(d => d.data().details?.includes('<script') || d.data().details?.includes('javascript:'));
+      if (xssSuspects.length > 0) {
+         addLog(`MALWARE DETECTED: ${xssSuspects.length} payloads found in Suggestions.`);
+         for (const x of xssSuspects) await deleteDoc(x.ref);
+         addLog('XSS fragments erased.');
+      }
+
+      showToast('Scan Selesai & Pembersihan Selesai', 'success');
     } catch (e) {
-      addLog('SCAN ERROR: Access Denied');
+      addLog('SCAN ERROR: System Interrupt');
     }
     setIsScanning(false);
   };
@@ -1246,6 +1263,14 @@ function XeroxTab({ showToast }: { showToast: any }) {
     }
   };
 
+  const clearSessions = async () => {
+     addLog('CLEARING ADMIN SESSIONS...');
+     const snap = await getDocs(collection(db, 'active_admin_sessions'));
+     for (const d of snap.docs) await deleteDoc(d.ref);
+     addLog('All admin sessions terminated.');
+     showToast('Sessions Cleared', 'success');
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
       <div className="flex items-center gap-4 mb-6">
@@ -1253,7 +1278,7 @@ function XeroxTab({ showToast }: { showToast: any }) {
           <ShieldAlert className="w-8 h-8" />
         </div>
         <div>
-          <h3 className="text-3xl font-black italic tracking-tighter uppercase italic">PROTOKOL XEROX</h3>
+          <h3 className="text-3xl font-black italic tracking-tighter uppercase">PROTOKOL XEROX</h3>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Real-Time Core Security Engine</p>
         </div>
       </div>
@@ -1263,17 +1288,34 @@ function XeroxTab({ showToast }: { showToast: any }) {
           <div className="flex items-center justify-between">
             <div>
                <h4 className="text-lg font-bold uppercase italic">Maintenance Mode</h4>
-               <p className="text-[10px] text-white/30 uppercase font-black tracking-widest mt-1">Manual Override</p>
+               <p className="text-[10px] text-white/30 uppercase font-black tracking-widest mt-1">Manual vs Auto</p>
             </div>
-            <button 
-              onClick={() => updateMaintenance({ active: !config?.maintenance?.active })}
-              className={cn(
-                "w-12 h-6 rounded-full relative transition-all",
-                config?.maintenance?.active ? "bg-amber-500" : "bg-white/10"
-              )}
-            >
-              <div className={cn("absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all", config?.maintenance?.active ? "translate-x-6" : "translate-x-0")} />
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-[8px] font-black uppercase text-white/20">Manual</p>
+                <button 
+                  onClick={() => updateMaintenance({ active: !config?.maintenance?.active })}
+                  className={cn(
+                    "w-12 h-6 rounded-full relative transition-all mt-1",
+                    config?.maintenance?.active ? "bg-red-500" : "bg-white/10"
+                  )}
+                >
+                  <div className={cn("absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all", config?.maintenance?.active ? "translate-x-6" : "translate-x-0")} />
+                </button>
+              </div>
+              <div className="text-right border-l border-white/5 pl-4">
+                <p className="text-[8px] font-black uppercase text-white/20">Auto (Timer)</p>
+                <button 
+                  onClick={() => updateMaintenance({ autoEnabled: !config?.maintenance?.autoEnabled })}
+                  className={cn(
+                    "w-12 h-6 rounded-full relative transition-all mt-1",
+                    config?.maintenance?.autoEnabled ? "bg-amber-500" : "bg-white/10"
+                  )}
+                >
+                  <div className={cn("absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all", config?.maintenance?.autoEnabled ? "translate-x-6" : "translate-x-0")} />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1296,9 +1338,9 @@ function XeroxTab({ showToast }: { showToast: any }) {
         <div className="space-y-4">
            <div className="grid grid-cols-2 gap-4">
               <XeroxBtn icon={Activity} label="Scanning" active={isScanning} onClick={runScanning} />
+              <XeroxBtn icon={Users} label="Clear Sessions" onClick={clearSessions} />
               <SecurityBtn icon={Trash2} label="Purge Cache" onClick={purgeCache} />
               <SecurityBtn icon={Shield} label="Integrital" onClick={() => addLog('CORE_INTEGRITY: 100% OK')} />
-              <SecurityBtn icon={Monitor} label="Net Health" onClick={() => addLog('NETWORK: STABLE, LOW LATENCY')} />
            </div>
 
            <div className="glass p-6 rounded-[24px] border-white/5 bg-black/40">

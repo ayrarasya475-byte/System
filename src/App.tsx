@@ -42,6 +42,7 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => localStorage.getItem('isAdminAuthenticated') === 'true');
+  const [adminSessionsCount, setAdminSessionsCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const [isBooting, setIsBooting] = useState(true);
@@ -187,8 +188,8 @@ export default function App() {
     if (promptId && prompts.length > 0) {
       const prompt = prompts.find(p => p.id === promptId);
       if (prompt) {
-        setInitialAiPrompt(prompt.content);
-        setView('ai');
+        setSearchQuery(prompt.name);
+        setView('dashboard');
         // Clear param to prevent re-opening
         window.history.replaceState({}, '', window.location.pathname);
       }
@@ -243,33 +244,40 @@ export default function App() {
         setSystemConfig(data);
         
         // Maintenance logic
-        if (data.maintenance?.active) {
-          const now = new Date();
-          const start = new Date(data.maintenance.startAt);
-          const end = new Date(data.maintenance.endAt);
-          
-          if (now >= start && now <= end) {
-             setIsMaintenanceMode(true);
-             setMaintenanceNote(data.maintenance.note || 'Sistem sedang dalam pemeliharaan.');
-          } else {
-             setIsMaintenanceMode(false);
-          }
+        const now = new Date();
+        const start = data.maintenance?.startAt ? new Date(data.maintenance.startAt) : null;
+        const end = data.maintenance?.endAt ? new Date(data.maintenance.endAt) : null;
+        
+        const isAutoActive = data.maintenance?.autoEnabled && start && end && now >= start && now <= end;
+        const isManualActive = data.maintenance?.active === true;
+
+        if (isAutoActive || isManualActive) {
+           setIsMaintenanceMode(true);
+           setMaintenanceNote(data.maintenance?.note || 'Sistem sedang dalam pemeliharaan.');
         } else {
-          setIsMaintenanceMode(false);
+           setIsMaintenanceMode(false);
         }
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, 'system_configs/main_prompt'));
     unsubs.push(unsubConfig);
 
-    // Super Owner & Owner Check
-    const isOwner = user?.email === 'ayrarasya475@gmail.com';
-    const isAdmin = isOwner || user?.email === 'poporasa6@gmail.com';
-    
-    setIsSuperOwner(isOwner);
-    if (!isAdmin && isAdminAuthenticated) {
-       setIsAdminAuthenticated(false);
-       localStorage.removeItem('isAdminAuthenticated');
-    }
+    // Track sessions
+    const unsubAdminSessions = onSnapshot(collection(db, 'active_admin_sessions'), (snap) => {
+      setAdminSessionsCount(snap.size);
+      
+      const isSuper = user?.email === 'ayrarasya475@gmail.com';
+      // If our own session is missing but we're marked as authenticated, revoke it
+      if (isAdminAuthenticated && user && !snap.docs.find(d => d.id === user.uid) && !isSuper) {
+        setIsAdminAuthenticated(false);
+        localStorage.removeItem('isAdminAuthenticated');
+        if (view === 'admin') setView('dashboard');
+        showToast('Sesi Admin Berakhir atau Diputus.', 'error');
+      }
+    });
+    unsubs.push(unsubAdminSessions);
+
+    // Super Owner Check
+    setIsSuperOwner(user?.email === 'ayrarasya475@gmail.com');
 
     // 4. Load Broadcasts (Always load)
     const unsubBroadcasts = onSnapshot(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc')), (snap) => {
@@ -345,8 +353,8 @@ export default function App() {
       return;
     }
     
-    // Auto-login if previously authenticated and session is alive
-    if (isAdminAuthenticated && (user?.email === 'ayrarasya475@gmail.com' || user?.email === 'poporasa6@gmail.com')) {
+    // Auto-login if previously authenticated
+    if (isAdminAuthenticated) {
       setView('admin');
       return;
     }
@@ -354,21 +362,30 @@ export default function App() {
     setShowAdminPassModal(true);
   };
 
-  const confirmAdminPass = () => {
+  const confirmAdminPass = async () => {
     if (adminPassInput === '97979797') {
-      const isAuthorized = user?.email === 'ayrarasya475@gmail.com' || user?.email === 'poporasa6@gmail.com';
-      
-      if (isAuthorized) {
-        setIsAdminAuthenticated(true);
-        localStorage.setItem('isAdminAuthenticated', 'true');
-        showToast('Akses Admin Diberikan', 'success');
-        setView('admin');
-        setShowAdminPassModal(false);
+      if (adminSessionsCount >= 10 && !isSuperOwner) {
+        showToast('Kapasitas Admin Penuh (Max 10).', 'error');
         setAdminPassInput('');
-      } else {
-        showToast('Akses Terbatas: Anda bukan administrator terdaftar.');
-        setAdminPassInput('');
+        return;
       }
+
+      setIsAdminAuthenticated(true);
+      localStorage.setItem('isAdminAuthenticated', 'true');
+      
+      try {
+        await setDoc(doc(db, 'active_admin_sessions', user!.uid), {
+          email: user!.email,
+          createdAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error('Session reg error:', e);
+      }
+
+      showToast('Akses Admin Diberikan', 'success');
+      setView('admin');
+      setShowAdminPassModal(false);
+      setAdminPassInput('');
     } else {
       showToast('Akses Ditolak: Kode Salah');
       setAdminPassInput('');
