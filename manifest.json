@@ -1,0 +1,23 @@
+{
+  "name": "Grextar | Elite Prompt Platform",
+  "short_name": "Grextar",
+  "description": "Elite prompt management platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030303",
+  "theme_color": "#030303",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3649/3649460.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/192/3649/3649460.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,11 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, setDoc } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer, setDoc } from 'firebase/firestore';
+import { GoogleGenAI } from '@google/genai';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {
@@ -28,8 +31,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  return errInfo;
+  const errorMessage = JSON.stringify(errInfo);
+  console.error('Firestore Error: ', errorMessage);
+  throw new Error(errorMessage);
 }
 
 let isSigningIn = false;
@@ -56,6 +60,10 @@ export const signInWithGoogle = async () => {
 };
 
 export const logout = () => signOut(auth);
+
+export const getAi = () => {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+};
 
 // Test connection
 async function testConnection() {

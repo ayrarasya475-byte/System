@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
@@ -25,10 +26,34 @@
 }
 
 .btn-primary {
-  @apply bg-white text-black px-5 py-2.5 rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-all text-sm;
+  @apply bg-white text-black px-4 py-2 rounded-lg font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all text-[10px];
 }
 
 .btn-secondary {
-  @apply bg-white/5 text-white px-5 py-2.5 rounded-xl font-bold border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-sm;
+  @apply bg-white/5 text-white/60 px-4 py-2 rounded-lg font-black uppercase tracking-widest border border-white/5 hover:bg-white/10 active:scale-95 transition-all text-[10px];
+}
+
+.nav-glass {
+  @apply bg-black/40 backdrop-blur-3xl border border-white/10 shadow-2xl;
+}
+
+.thinking-gradient {
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.4), transparent);
+  background-size: 200% 100%;
+  animation: move-gradient 1.5s linear infinite;
+}
+
+@keyframes move-gradient {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.search-progress {
+  @apply absolute left-0 top-0 h-[1px] bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)];
+  z-index: 100;
+}
+
+@layer utilities {
+  /* ... rest of specific utilities ... */
 }
 

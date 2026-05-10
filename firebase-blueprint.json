@@ -13,9 +13,81 @@
         "downloadCount": { "type": "number" },
         "creatorId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["active", "pending"] }
+        "status": { "type": "string", "enum": ["active", "pending"] },
+        "notes": { "type": "string" },
+        "password": { "type": "string" },
+        "isLocked": { "type": "boolean" }
       },
       "required": ["name", "content", "modelId", "likes", "copyCount", "downloadCount", "createdAt", "status"]
+    },
+    "Broadcast": {
+      "title": "Broadcast",
+      "description": "Admin broadcast messages to all or specific users.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "senderName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "targetUserId": { "type": "string", "description": "If present, message is private to this user" }
+      },
+      "required": ["title", "content", "createdAt"]
+    },
+    "BannedUser": {
+      "title": "BannedUser",
+      "description": "Users banned from the platform with optional timer and restrictions.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "bannedUntil": { "type": "string", "format": "date-time", "description": "ISO string if temporary" },
+        "aiBlocked": { "type": "boolean", "description": "If true, user cannot use AI features" },
+        "blockedPromptIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["createdAt"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "Global system configurations including maintenance mode.",
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["default", "change"] },
+        "customContent": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "maintenance": {
+          "type": "object",
+          "properties": {
+            "active": { "type": "boolean" },
+            "startAt": { "type": "string", "format": "date-time" },
+            "endAt": { "type": "string", "format": "date-time" },
+            "note": { "type": "string" },
+            "autoXerox": { "type": "boolean", "description": "Auto-cleanup and scan" }
+          }
+        }
+      },
+      "required": ["mode", "updatedAt"]
+    },
+    "UserMetadata": {
+      "title": "UserMetadata",
+      "description": "Extended user metadata, statistics, and permissions.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "ip": { "type": "string" },
+        "location": { "type": "string" },
+        "dns": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "copyStats": { "type": "number" },
+        "shareStats": { "type": "number" },
+        "likeStats": { "type": "number" },
+        "commentStats": { "type": "number" },
+        "loginCount": { "type": "number" },
+        "role": { "type": "string", "enum": ["user", "admin", "owner", "super_owner"] },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["email", "lastLogin"]
     },
     "Model": {
       "title": "Model",
@@ -103,6 +175,22 @@
     "/stats_logs/{logId}": {
       "schema": "StatsLog",
       "description": "Detailed interaction logs."
+    },
+    "/broadcasts/{broadcastId}": {
+      "schema": "Broadcast",
+      "description": "Public announcements."
+    },
+    "/banned_users/{userId}": {
+      "schema": "BannedUser",
+      "description": "List of blocked users."
+    },
+    "/system_configs/{configId}": {
+      "schema": "SystemConfig",
+      "description": "System-wide settings."
+    },
+    "/user_metadata/{userId}": {
+      "schema": "UserMetadata",
+      "description": "Detailed user statistics and info."
     },
     "/users/{userId}/likes/{promptId}": {
       "schema": { "type": "object", "properties": { "at": { "type": "string", "format": "date-time" } } },

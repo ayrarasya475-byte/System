@@ -1,4 +1,4 @@
-import { MessageSquare, FileText, ShieldAlert, HelpCircle, LayoutGrid, X } from 'lucide-react';
+import { MessageSquare, FileText, ShieldAlert, HelpCircle, LayoutGrid, Sparkles, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
@@ -11,8 +11,9 @@ interface SidebarProps {
 
 export default function Sidebar({ currentView, isOpen, onClose, onViewChange }: SidebarProps) {
   const items = [
-    { id: 'browse', label: 'Browse', icon: LayoutGrid },
-    { id: 'chat', label: 'Admin Support', icon: MessageSquare },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'ai', label: 'Ai Engine', icon: Sparkles },
+    { id: 'chat', label: 'Support / Bantuan', icon: MessageSquare },
     { id: 'suggest', label: 'Saran Prompt', icon: FileText },
     { id: 'faq', label: 'FAQ Center', icon: HelpCircle },
   ];

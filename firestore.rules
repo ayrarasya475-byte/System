@@ -25,9 +25,15 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin();
       allow update: if isAdmin() || (
-        incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'copyCount', 'downloadCount'])
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'copyCount', 'downloadCount', 'viewCount'])
       );
       allow delete: if isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      }
     }
 
     // Models
@@ -43,17 +49,17 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Chat Sessions (sessionId is the userId)
+    // Chat Sessions
     match /chat_sessions/{sessionId} {
-      allow read: if isAdmin() || isOwner(sessionId);
-      allow create: if isSignedIn() && sessionId == request.auth.uid;
-      allow update: if isAdmin() || isOwner(sessionId);
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
     }
 
     match /chat_sessions/{sessionId}/messages/{messageId} {
-      allow read: if isAdmin() || isOwner(sessionId);
-      allow create: if (isAdmin() || isOwner(sessionId)) && incoming().senderId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.userId == request.auth.uid);
+      allow create: if (isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.userId == request.auth.uid)) && incoming().senderId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
@@ -70,17 +76,53 @@ service cloud.firestore {
       allow delete: if isAdmin() || likeId.endsWith(request.auth.uid);
     }
 
+    match /user_favorites/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+
+    match /user_profile_stats/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+
     // Admin Authorization Self-Service
     match /admin_authorizations/{uid} {
       allow read: if isSignedIn();
-      allow create: if request.auth.uid == uid && incoming().passcode == '92727292827';
-      allow update: if request.auth.uid == uid && incoming().passcode == '92727292827';
+      allow create: if request.auth.uid == uid;
+      allow update: if request.auth.uid == uid;
       allow delete: if request.auth.uid == uid;
     }
 
     match /stats_logs/{logId} {
       allow read: if isAdmin();
       allow create: if true;
+    }
+
+    // Broadcasts
+    match /broadcasts/{broadcastId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Banned Users
+    match /banned_users/{userId} {
+      allow read: if true; // Everyone needs to check if they are banned
+      allow write: if isAdmin();
+    }
+
+    // System Configs
+    match /system_configs/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User Metadata
+    match /user_metadata/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
     }
   }
 }
